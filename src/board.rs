@@ -187,7 +187,6 @@ fn move_piece(
     mut pieces_query: Query<(Entity, &mut Piece)>,
     mut reset_selected_event: EventWriter<ResetSelectedEvent>,
     mut turn_event_w: EventWriter<Turn>,
-    mut start_combust: EventWriter<StartCombust>,
 ) {
     if !selected_square.is_changed() {
         return;
@@ -212,7 +211,7 @@ fn move_piece(
             .map(|(entity, piece)| (entity, *piece))
             .collect::<Vec<(Entity, Piece)>>();
         // Move the selected piece to the selected square
-        let (piece_entity, mut piece) =
+        let (_piece_entity, mut piece) =
             if let Ok((piece_entity, piece)) = pieces_query.get_mut(selected_piece_entity) {
                 (piece_entity, piece)
             } else {
@@ -226,6 +225,7 @@ fn move_piece(
                     && other_piece.y == square.y
                     && other_piece.color != piece.color
                 {
+                    piece.energy = piece.energy.saturating_add(KILL_ENERGY);
                     // Mark the piece as taken
                     commands.entity(other_entity).insert(Taken);
                 }
@@ -245,7 +245,7 @@ fn move_piece(
 
             // Combust
             if event_turn.piece_type == PieceType::Pawn {
-                start_combust.send(StartCombust(piece_entity));
+                // start_combust.send(StartCombust(piece_entity));
             }
 
             // Change turn

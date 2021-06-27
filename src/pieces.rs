@@ -16,6 +16,21 @@ pub enum PieceType {
     Pawn,
 }
 
+pub const KILL_ENERGY: u8 = 10;
+
+// impl PieceType {
+//     pub fn max_energy(&self) -> u8 {
+//         match self {
+//             PieceType::King => 100,
+//             PieceType::Queen => 100,
+//             PieceType::Bishop => 100,
+//             PieceType::Knight => 100,
+//             PieceType::Rook => 100,
+//             PieceType::Pawn => 10,
+//         }
+//     }
+// }
+
 #[derive(Clone, Copy)]
 pub struct Piece {
     pub color: PieceColor,
@@ -23,6 +38,7 @@ pub struct Piece {
     // Current position
     pub x: u8,
     pub y: u8,
+    pub energy: u8
 }
 
 impl Piece {
@@ -397,6 +413,7 @@ fn spawn_king(
             piece_type: PieceType::King,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         // Add children to the parent
         .with_children(|parent| {
@@ -446,6 +463,7 @@ fn spawn_knight(
             piece_type: PieceType::Knight,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         // Add children to the parent
         .with_children(|parent| {
@@ -494,6 +512,7 @@ fn spawn_queen(
             piece_type: PieceType::Queen,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {
@@ -531,6 +550,7 @@ fn spawn_bishop(
             piece_type: PieceType::Bishop,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {
@@ -568,6 +588,7 @@ fn spawn_rook(
             piece_type: PieceType::Rook,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {
@@ -605,6 +626,7 @@ fn spawn_pawn(
             piece_type: PieceType::Pawn,
             x: position.0,
             y: position.1,
+            energy: 0
         })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {

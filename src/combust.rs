@@ -1,15 +1,13 @@
 use bevy::math::Quat;
-use bevy::pbr::PbrBundle;
-use bevy::prelude::shape::{Icosphere, Plane};
 use bevy::prelude::{
-    FromWorld, Handle, IntoSystem, Mesh, OrthographicCameraBundle, StandardMaterial, Texture,
+    FromWorld, Handle, IntoSystem,
 };
 use bevy::{
     core::{Time, Timer},
     math::{Vec2, Vec3},
     prelude::{
         AppBuilder, AssetServer, Assets, BuildChildren, Color, Commands, Entity, EventReader,
-        Plugin, Query, Res, ResMut, SpriteBundle, Transform, With,
+        Plugin, Query, Res, SpriteBundle, Transform, With,
     },
     sprite::{ColorMaterial, Sprite},
 };
