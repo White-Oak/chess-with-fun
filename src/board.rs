@@ -1,4 +1,4 @@
-use crate::pieces::*;
+use crate::{combust::StartCombust, history::Turn, pieces::*};
 use bevy::{app::AppExit, prelude::*};
 use bevy_mod_picking::*;
 
@@ -177,6 +177,7 @@ fn select_piece(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn move_piece(
     mut commands: Commands,
     selected_square: Res<SelectedSquare>,
@@ -185,6 +186,8 @@ fn move_piece(
     squares_query: Query<&Square>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
     mut reset_selected_event: EventWriter<ResetSelectedEvent>,
+    mut turn_event_w: EventWriter<Turn>,
+    mut start_combust: EventWriter<StartCombust>,
 ) {
     if !selected_square.is_changed() {
         return;
@@ -209,9 +212,9 @@ fn move_piece(
             .map(|(entity, piece)| (entity, *piece))
             .collect::<Vec<(Entity, Piece)>>();
         // Move the selected piece to the selected square
-        let mut piece =
-            if let Ok((_piece_entity, piece)) = pieces_query.get_mut(selected_piece_entity) {
-                piece
+        let (piece_entity, mut piece) =
+            if let Ok((piece_entity, piece)) = pieces_query.get_mut(selected_piece_entity) {
+                (piece_entity, piece)
             } else {
                 return;
             };
@@ -228,11 +231,25 @@ fn move_piece(
                 }
             }
 
+            let event_turn = Turn {
+                color: turn.0,
+                piece_type: piece.piece_type,
+                from_x: piece.x,
+                from_y: piece.y,
+                to_x: square.x,
+                to_y: square.y,
+            };
             // Move piece
             piece.x = square.x;
             piece.y = square.y;
 
+            // Combust
+            if event_turn.piece_type == PieceType::Pawn {
+                start_combust.send(StartCombust(piece_entity));
+            }
+
             // Change turn
+            turn_event_w.send(event_turn);
             turn.change();
         }
 

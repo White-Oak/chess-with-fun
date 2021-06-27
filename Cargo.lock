@@ -258,6 +258,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6b14f8ba7c373fdf7bd27547bb95f2849b2569bf02bbf3d19ca54e9d692de4f"
 dependencies = [
+ "bevy_dylib",
  "bevy_internal",
  "syn",
 ]
@@ -303,7 +304,7 @@ dependencies = [
  "ndk-glue",
  "notify",
  "parking_lot 0.11.0",
- "rand 0.8.3",
+ "rand 0.8.4",
  "ron",
  "serde",
  "thiserror",
@@ -334,6 +335,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_mod_picking",
+ "rand 0.8.4",
 ]
 
 [[package]]
@@ -379,6 +381,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_dylib"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efa62c7c03470969539a07337bf8c5694c0b952678fd081d68b6331842134b85"
+dependencies = [
+ "bevy_internal",
+]
+
+[[package]]
 name = "bevy_dynamic_plugin"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -404,7 +415,7 @@ dependencies = [
  "fixedbitset 0.4.0",
  "fxhash",
  "parking_lot 0.11.0",
- "rand 0.8.3",
+ "rand 0.8.4",
  "serde",
  "thiserror",
 ]
@@ -2849,9 +2860,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ef9e7e66b4468674bfcb0c81af8b7fa0bb154fa9f28eb840da5c447baeb8d7e"
+checksum = "2e7573632e6454cf6b99d7aac4ccca54be06da05aca2ef7423d22d27d4d4bcd8"
 dependencies = [
  "libc",
  "rand_chacha 0.3.0",

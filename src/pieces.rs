@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum PieceColor {
     White,
     Black,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum PieceType {
     King,
     Queen,
@@ -24,6 +24,7 @@ pub struct Piece {
     pub x: u8,
     pub y: u8,
 }
+
 impl Piece {
     /// Returns the possible_positions that are available
     pub fn is_move_valid(&self, new_position: (u8, u8), pieces: Vec<Piece>) -> bool {
@@ -200,7 +201,7 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
 
         // Only move if the piece isn't already there (distance is big)
         if direction.length() > 0.1 {
-            transform.translation += direction.normalize() * time.delta_seconds();
+            transform.translation += direction.normalize() * (time.delta_seconds() * 8.);
         }
     }
 }
