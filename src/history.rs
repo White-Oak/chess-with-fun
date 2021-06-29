@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use bevy::prelude::{EventReader, IntoSystem, ResMut};
 use bevy::prelude::{AppBuilder, Plugin};
+use bevy::prelude::{EventReader, IntoSystem, ResMut};
 
 use crate::pieces::{PieceColor, PieceType};
 
@@ -46,15 +46,11 @@ impl Display for Turn {
 //     commands.spawn().insert(History::default());
 // }
 
-fn add_turn_to_history(
-    mut event_reader: EventReader<Turn>,
-    mut history: ResMut<History>,
-) {
+fn add_turn_to_history(mut event_reader: EventReader<Turn>, mut history: ResMut<History>) {
     for turn in event_reader.iter() {
         history.turns.push(*turn);
     }
 }
-
 
 pub struct HistoryPlugin;
 
@@ -62,7 +58,7 @@ impl Plugin for HistoryPlugin {
     fn build(&self, app: &mut AppBuilder) {
         // app.add_startup_system(create_history.system());
         app.init_resource::<History>()
-        .add_event::<Turn>()
-        .add_system(add_turn_to_history.system());
+            .add_event::<Turn>()
+            .add_system(add_turn_to_history.system());
     }
 }

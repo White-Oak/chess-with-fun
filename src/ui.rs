@@ -90,11 +90,11 @@ fn init_next_move_text(
                     ..Default::default()
                 })
                 .insert(LastTurnText);
-                // let material = color_materials.add(asset_server.load("combust_particle.png").into());
-                // parent.spawn_bundle(ImageBundle {
-                //     material,
-                //     ..Default::default()
-                // });
+            // let material = color_materials.add(asset_server.load("combust_particle.png").into());
+            // parent.spawn_bundle(ImageBundle {
+            //     material,
+            //     ..Default::default()
+            // });
         });
 }
 
@@ -114,13 +114,12 @@ fn next_move_text_update(turn: Res<PlayerTurn>, mut query: Query<(&mut Text, &Ne
     }
 }
 
-fn last_turn_text_update(history: Res<History>,
-    mut query: Query<(&mut Text, &LastTurnText)>) {
+fn last_turn_text_update(history: Res<History>, mut query: Query<(&mut Text, &LastTurnText)>) {
     if !history.is_changed() {
-        return
+        return;
     }
     if history.turns.is_empty() {
-        return
+        return;
     }
     let last_turn = history.turns.last().unwrap();
     for (mut text, _tag) in query.iter_mut() {

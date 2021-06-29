@@ -1,7 +1,5 @@
 use bevy::math::Quat;
-use bevy::prelude::{
-    FromWorld, Handle, IntoSystem,
-};
+use bevy::prelude::{FromWorld, Handle, IntoSystem};
 use bevy::{
     core::{Time, Timer},
     math::{Vec2, Vec3},
@@ -118,10 +116,8 @@ struct CombustMaterials(Vec<Handle<ColorMaterial>>);
 impl FromWorld for CombustMaterials {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
         let world = world.cell();
-        let mut materials = world
-            .get_resource_mut::<Assets<ColorMaterial>>()
-            .unwrap();
-            let mut vec = vec![];
+        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
+        let mut vec = vec![];
         let asset_server = world.get_resource_mut::<AssetServer>().unwrap();
         let texture = asset_server.load("combust_particle.png");
         for i in 0..COMBUST_VARIETY {

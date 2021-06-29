@@ -1,4 +1,8 @@
-use crate::{combust::StartCombust, history::Turn, pieces::*};
+use crate::{
+    combust::StartCombust,
+    history::{History, Turn},
+    pieces::*,
+};
 use bevy::{app::AppExit, prelude::*};
 use bevy_mod_picking::*;
 
@@ -187,6 +191,7 @@ fn move_piece(
     mut pieces_query: Query<(Entity, &mut Piece)>,
     mut reset_selected_event: EventWriter<ResetSelectedEvent>,
     mut turn_event_w: EventWriter<Turn>,
+    history: Res<History>,
 ) {
     if !selected_square.is_changed() {
         return;
@@ -205,7 +210,10 @@ fn move_piece(
     };
 
     if let Some(selected_piece_entity) = selected_piece.entity {
-        let pieces_vec = pieces_query.iter_mut().map(|(_, piece)| *piece).collect();
+        let pieces_vec = pieces_query
+            .iter_mut()
+            .map(|(_, piece)| *piece)
+            .collect::<Vec<_>>();
         let pieces_entity_vec = pieces_query
             .iter_mut()
             .map(|(entity, piece)| (entity, *piece))
@@ -218,7 +226,7 @@ fn move_piece(
                 return;
             };
 
-        if piece.is_move_valid((square.x, square.y), pieces_vec) {
+        if piece.is_move_valid((square.x, square.y), &pieces_vec, &history) {
             // Check if a piece of the opposite color exists in this square and despawn it
             for (other_entity, other_piece) in pieces_entity_vec {
                 if other_piece.x == square.x

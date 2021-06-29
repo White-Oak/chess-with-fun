@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use bevy::{diagnostic::{DiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*};
+use bevy::{
+    diagnostic::{DiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    prelude::*,
+};
 use bevy_mod_picking::*;
 
 mod pieces;
@@ -11,8 +14,8 @@ mod ui;
 use ui::*;
 
 use crate::{combust::CombustPlugin, history::HistoryPlugin};
-mod history;
 mod combust;
+mod history;
 
 fn main() {
     App::build()
@@ -35,7 +38,7 @@ fn main() {
         .add_plugin(UIPlugin)
         .add_plugin(DiagnosticsPlugin)
         .add_plugin(FrameTimeDiagnosticsPlugin)
-        .add_plugin(LogDiagnosticsPlugin{
+        .add_plugin(LogDiagnosticsPlugin {
             debug: false,
             wait_duration: Duration::from_secs(1),
             filter: Some(vec![FrameTimeDiagnosticsPlugin::FPS]),
