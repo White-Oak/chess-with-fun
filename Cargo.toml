@@ -10,3 +10,6 @@ edition = "2018"
 bevy = {version = "0.5", features = ["dynamic"] }
 bevy_mod_picking = "0.4"
 rand = "0.8.4"
+
+[profile.release]
+lto = true

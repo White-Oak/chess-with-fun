@@ -114,18 +114,45 @@ fn valid_positions_for_pawn(
     pieces: &[Piece],
     history: &History,
 ) {
+    let last_turn = history.turns.last();
+    let multiplier = if this.color == PieceColor::White {
+        1
+    } else {
+        -1
+    };
+    try_peace_move_pawn(poss, this, pieces, 1 * multiplier);
+    try_aggr_move_pawn(poss, this, pieces, 1 * multiplier);
     if this.color == PieceColor::White {
-        try_peace_move_pawn(poss, this, pieces, 1);
         if this.x == 1 {
             try_peace_move_pawn(poss, this, pieces, 2);
         }
-        try_aggr_move_pawn(poss, this, pieces, 1);
     } else {
-        try_peace_move_pawn(poss, this, pieces, -1);
         if this.x == 6 {
             try_peace_move_pawn(poss, this, pieces, -2);
         }
-        try_aggr_move_pawn(poss, this, pieces, -1);
+    }
+    if let Some(last_turn) = last_turn {
+        if last_turn.color.opposite() != this.color {
+            return;
+        }
+        if last_turn.piece_type != PieceType::Pawn {
+            return;
+        }
+        if (last_turn.to_x as i8 - last_turn.from_x as i8).abs() != 2 {
+            return;
+        }
+        if last_turn.to_x != this.x {
+            return;
+        }
+        if (last_turn.to_y as i8 - this.y as i8).abs() != 1 {
+            return;
+        }
+        if last_turn.to_y > this.y {
+            try_move(poss, this, pieces, 1 * multiplier, 1);
+        }
+        if last_turn.to_y < this.y {
+            try_move(poss, this, pieces, 1 * multiplier, -1);
+        }
     }
 }
 

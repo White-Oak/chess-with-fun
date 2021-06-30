@@ -237,6 +237,17 @@ fn move_piece(
                     // Mark the piece as taken
                     commands.entity(other_entity).insert(Taken);
                 }
+                // En passant
+                if piece.piece_type == PieceType::Pawn
+                    && other_piece.piece_type == PieceType::Pawn
+                    && square.y == other_piece.y
+                    && (square.x as i8 - other_piece.x as i8).abs() == 1
+                    && other_piece.color != piece.color
+                {
+                    piece.energy = piece.energy.saturating_add(KILL_ENERGY);
+                    // Mark the piece as taken
+                    commands.entity(other_entity).insert(Taken);
+                }
             }
 
             let event_turn = Turn {
