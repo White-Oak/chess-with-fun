@@ -16,6 +16,8 @@ impl Square {
     }
 }
 
+struct MovableSquare;
+
 fn create_board(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -48,15 +50,15 @@ fn create_board(
 fn color_squares(
     selected_square: Res<SelectedSquare>,
     materials: Res<SquareMaterials>,
-    mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
+    mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>), Without<MovableSquare>>,
+    mut movable_query: Query<(Entity, &Square, &mut Handle<StandardMaterial>), With<MovableSquare>>,
     picking_camera_query: Query<&PickingCamera>,
 ) {
     // Get entity under the cursor, if there is one
     let top_entity = match picking_camera_query.iter().last() {
-        Some(picking_camera) => match picking_camera.intersect_top() {
-            Some((entity, _intersection)) => Some(entity),
-            None => None,
-        },
+        Some(picking_camera) => picking_camera
+            .intersect_top()
+            .map(|(entity, _intersection)| entity),
         None => None,
     };
 
@@ -72,6 +74,17 @@ fn color_squares(
             materials.black_color.clone()
         };
     }
+    for (entity, square, mut material) in movable_query.iter_mut() {
+        *material = if Some(entity) == top_entity {
+            materials.highlight_color.clone()
+        } else if Some(entity) == selected_square.entity {
+            materials.selected_color.clone()
+        } else if square.is_white() {
+            materials.movable_white_color.clone()
+        } else {
+            materials.movable_black_color.clone()
+        };
+    }
 }
 
 struct SquareMaterials {
@@ -79,6 +92,8 @@ struct SquareMaterials {
     selected_color: Handle<StandardMaterial>,
     black_color: Handle<StandardMaterial>,
     white_color: Handle<StandardMaterial>,
+    movable_white_color: Handle<StandardMaterial>,
+    movable_black_color: Handle<StandardMaterial>,
 }
 
 impl FromWorld for SquareMaterials {
@@ -92,6 +107,8 @@ impl FromWorld for SquareMaterials {
             selected_color: materials.add(Color::rgb(0.9, 0.1, 0.1).into()),
             black_color: materials.add(Color::rgb(0., 0.1, 0.1).into()),
             white_color: materials.add(Color::rgb(1., 0.9, 0.9).into()),
+            movable_white_color: materials.add(Color::rgb(0.7, 0.9, 0.9).into()),
+            movable_black_color: materials.add(Color::rgb(0., 0.3, 0.3).into()),
         }
     }
 }
@@ -176,6 +193,36 @@ fn select_piece(
                 // piece_entity is now the entity in the same square
                 selected_piece.entity = Some(piece_entity);
                 break;
+            }
+        }
+    }
+}
+
+fn highlight_moves(
+    mut commands: Commands,
+    selected_piece: Res<SelectedPiece>,
+    squares_query: Query<(Entity, &Square)>,
+    pieces_query: Query<&Piece>,
+    history: Res<History>,
+) {
+    if !selected_piece.is_changed() {
+        return;
+    }
+    let piece = if let Some(selected_piece_entity) = selected_piece.entity {
+        if let Ok(piece) = pieces_query.get(selected_piece_entity) {
+            piece
+        } else {
+            return;
+        }
+    } else {
+        return;
+    };
+    let pieces: Vec<Piece> = pieces_query.iter().copied().collect();
+    let positions = piece.valid_positions(&pieces, &history);
+    for (entity, square) in squares_query.iter() {
+        for &(x, y) in positions.iter() {
+            if square.x == x && square.y == y {
+                commands.entity(entity).insert(MovableSquare);
             }
         }
     }
@@ -279,13 +326,18 @@ fn move_piece(
 struct ResetSelectedEvent;
 
 fn reset_selected(
+    mut commands: Commands,
     mut event_reader: EventReader<ResetSelectedEvent>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    movable_query: Query<Entity, With<MovableSquare>>,
 ) {
     for _event in event_reader.iter() {
         selected_square.entity = None;
         selected_piece.entity = None;
+        for entity in movable_query.iter() {
+            commands.entity(entity).remove::<MovableSquare>();
+        }
     }
 }
 
@@ -337,6 +389,7 @@ impl Plugin for BoardPlugin {
                     .after("select_square")
                     .label("select_piece"),
             )
+            .add_system(highlight_moves.system().after("select_piece"))
             .add_system(despawn_taken_pieces.system())
             .add_system(reset_selected.system().after("select_square"));
     }

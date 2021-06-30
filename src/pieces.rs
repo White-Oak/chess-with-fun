@@ -120,16 +120,14 @@ fn valid_positions_for_pawn(
     } else {
         -1
     };
-    try_peace_move_pawn(poss, this, pieces, 1 * multiplier);
-    try_aggr_move_pawn(poss, this, pieces, 1 * multiplier);
+    try_peace_move_pawn(poss, this, pieces, multiplier);
+    try_aggr_move_pawn(poss, this, pieces, multiplier);
     if this.color == PieceColor::White {
         if this.x == 1 {
             try_peace_move_pawn(poss, this, pieces, 2);
         }
-    } else {
-        if this.x == 6 {
-            try_peace_move_pawn(poss, this, pieces, -2);
-        }
+    } else if this.x == 6 {
+        try_peace_move_pawn(poss, this, pieces, -2);
     }
     if let Some(last_turn) = last_turn {
         if last_turn.color.opposite() != this.color {
@@ -148,10 +146,10 @@ fn valid_positions_for_pawn(
             return;
         }
         if last_turn.to_y > this.y {
-            try_move(poss, this, pieces, 1 * multiplier, 1);
+            try_move(poss, this, pieces, multiplier, 1);
         }
         if last_turn.to_y < this.y {
-            try_move(poss, this, pieces, 1 * multiplier, -1);
+            try_move(poss, this, pieces, multiplier, -1);
         }
     }
 }
@@ -228,28 +226,54 @@ fn try_move_in_line(
     iter_dy: impl Iterator<Item = i8>,
 ) {
     for (dx, dy) in iter_dx.zip(iter_dy) {
-        try_move(poss, this, pieces, dx, dy);
+        let result = try_move(poss, this, pieces, dx, dy);
+        match result {
+            MoveResult::Free => {}
+            _ => return,
+        }
     }
 }
 
-fn try_move(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece], dx: i8, dy: i8) {
+#[derive(PartialEq, Eq)]
+enum MoveResult {
+    SameColor,
+    OppositeColor,
+    Free,
+    OutOfBounds,
+}
+
+fn try_move(
+    poss: &mut Vec<(u8, u8)>,
+    this: &Piece,
+    pieces: &[Piece],
+    dx: i8,
+    dy: i8,
+) -> MoveResult {
     let x = if let Some(x) = check_add(this.x, dx as i8) {
         x
     } else {
-        return;
+        return MoveResult::OutOfBounds;
     };
     let y = if let Some(y) = check_add(this.y, dy as i8) {
         y
     } else {
-        return;
+        return MoveResult::OutOfBounds;
     };
     if pieces
         .iter()
         .any(|piece| piece.color == this.color && piece.x == x && piece.y == y)
     {
-        return;
+        return MoveResult::SameColor;
     }
     poss.push((x, y));
+    if pieces
+        .iter()
+        .any(|piece| piece.color != this.color && piece.x == x && piece.y == y)
+    {
+        MoveResult::OppositeColor
+    } else {
+        MoveResult::Free
+    }
 }
 
 impl Piece {
@@ -439,37 +463,37 @@ fn create_pieces(
         &mut commands,
         black_material.clone(),
         PieceColor::Black,
-        queen_handle.clone(),
+        queen_handle,
         (7, 3),
     );
     spawn_king(
         &mut commands,
         black_material.clone(),
         PieceColor::Black,
-        king_handle.clone(),
-        king_cross_handle.clone(),
+        king_handle,
+        king_cross_handle,
         (7, 4),
     );
     spawn_bishop(
         &mut commands,
         black_material.clone(),
         PieceColor::Black,
-        bishop_handle.clone(),
+        bishop_handle,
         (7, 5),
     );
     spawn_knight(
         &mut commands,
         black_material.clone(),
         PieceColor::Black,
-        knight_1_handle.clone(),
-        knight_2_handle.clone(),
+        knight_1_handle,
+        knight_2_handle,
         (7, 6),
     );
     spawn_rook(
         &mut commands,
         black_material.clone(),
         PieceColor::Black,
-        rook_handle.clone(),
+        rook_handle,
         (7, 7),
     );
 
