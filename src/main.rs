@@ -37,12 +37,12 @@ fn main() {
         .add_plugin(CombustPlugin)
         .add_plugin(UIPlugin)
         .add_plugin(DiagnosticsPlugin)
-        .add_plugin(FrameTimeDiagnosticsPlugin)
-        .add_plugin(LogDiagnosticsPlugin {
-            debug: false,
-            wait_duration: Duration::from_secs(1),
-            filter: Some(vec![FrameTimeDiagnosticsPlugin::FPS]),
-        })
+        // .add_plugin(FrameTimeDiagnosticsPlugin)
+        // .add_plugin(LogDiagnosticsPlugin {
+        //     debug: false,
+        //     wait_duration: Duration::from_secs(1),
+        //     filter: Some(vec![FrameTimeDiagnosticsPlugin::FPS]),
+        // })
         .add_startup_system(setup.system())
         .run();
 }
