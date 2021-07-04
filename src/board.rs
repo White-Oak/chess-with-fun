@@ -48,7 +48,7 @@ fn create_board(
 
 fn color_squares(
     materials: Res<SquareMaterials>,
-    selected_square: Query<Entity, With<Selected>>,
+    selected_piece: Res<Option<SelectedPiece>>,
     mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>), Without<MovableSquare>>,
     mut movable_query: Query<(Entity, &Square, &mut Handle<StandardMaterial>), With<MovableSquare>>,
     picking_camera_query: Query<&PickingCamera>,
@@ -60,8 +60,8 @@ fn color_squares(
             .map(|(entity, _intersection)| entity),
         None => None,
     };
-    let selected_square = selected_square.single().ok();
 
+    let selected_square = selected_piece.as_ref().map(|x| x.square_entity);
     for (entity, square, mut material) in query.iter_mut() {
         // Change the material
         *material = if Some(entity) == top_entity {
@@ -113,8 +113,6 @@ impl FromWorld for SquareMaterials {
     }
 }
 
-struct Selected;
-
 pub struct PlayerTurn(pub PieceColor);
 impl Default for PlayerTurn {
     fn default() -> Self {
@@ -130,81 +128,108 @@ impl PlayerTurn {
     }
 }
 
+struct SelectedPiece {
+    square_entity: Entity,
+    piece_entity: Entity,
+    x: u8,
+    y: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MovePieceEvent(u8, u8);
+
+#[allow(clippy::too_many_arguments)]
 fn select_square(
-    mut commands: Commands,
     mouse_button_inputs: Res<Input<MouseButton>>,
-    selected_query: Query<Entity, With<Selected>>,
+    movable_squares_query: Query<&Square, With<MovableSquare>>,
+    squares_query: Query<&Square>,
+    pieces_query: Query<(Entity, &Piece)>,
     picking_camera_query: Query<&PickingCamera>,
+    mut selected_piece_res: ResMut<Option<SelectedPiece>>,
+    turn: Res<PlayerTurn>,
+    mut move_piece: EventWriter<MovePieceEvent>,
 ) {
     // Only run if the left button is pressed
     if !mouse_button_inputs.just_pressed(MouseButton::Left) {
         return;
     }
 
+    let mut deselect = false;
+
     // Get the square under the cursor and set it as the selected
-    if let Some(picking_camera) = picking_camera_query.iter().last() {
-        if let Some((square_entity, _intersection)) = picking_camera.intersect_top() {
-            println!("selected square");
-            commands.entity(square_entity).insert(Selected);
+    let picking_camera = picking_camera_query.single().expect("where is the camera?");
+    if let Some((square_entity, _intersection)) = picking_camera.intersect_top() {
+        let square = squares_query
+            .get(square_entity)
+            .expect("where is the square");
+        // Don't select piece if no friendly piece is selected.
+        if let Some(piece_entity) = pieces_query
+            .iter()
+            .find(|(_, piece)| piece.x == square.x && piece.y == square.y && piece.color == turn.0)
+            .map(|(entity, _)| entity)
+        {
+            let selected_piece = SelectedPiece {
+                square_entity,
+                piece_entity,
+                x: square.x,
+                y: square.y,
+            };
+            selected_piece_res.insert(selected_piece);
         } else {
-            for entity in selected_query.iter() {
-                println!("deselected entity");
-                commands.entity(entity).remove::<Selected>();
+            // Try to move piece otherwise
+            if movable_squares_query
+                .iter()
+                .any(|move_square| square.x == move_square.x && square.y == move_square.y)
+            {
+                let event = MovePieceEvent(square.x, square.y);
+                move_piece.send(event);
+            } else {
+                deselect = true;
             }
         }
-    }
-}
-
-fn select_piece(
-    mut commands: Commands,
-    selected_square: Query<&Square, Added<Selected>>,
-    turn: Res<PlayerTurn>,
-    pieces_query: Query<(Entity, &Piece), Without<Selected>>,
-    selected_pieces_query: Query<Entity, (With<Selected>, With<Piece>)>,
-) {
-    let square = if let Ok(x) = selected_square.single() {
-        x
     } else {
-        return;
-    };
-
-    // Select the piece in the currently selected square
-    for (piece_entity, piece) in pieces_query.iter() {
-        if piece.x == square.x && piece.y == square.y && piece.color == turn.0 {
-            // piece_entity is now the entity in the same square
-            for entity in selected_pieces_query.iter() {
-                println!("deselected piece");
-                commands.entity(entity).remove::<Selected>();
-            }
-            println!("selected piece");
-            commands.entity(piece_entity).insert(Selected);
-            break;
-        }
+        deselect = true;
+    }
+    if deselect {
+        // Clicked outside of board or clicked outide of movable positions
+        selected_piece_res.take();
     }
 }
 
 fn highlight_moves(
     mut commands: Commands,
-    selected_piece: Query<&Piece, Added<Selected>>,
+    selected_piece: Res<Option<SelectedPiece>>,
     squares_query: Query<(Entity, &Square), Without<MovableSquare>>,
     movable_squares_query: Query<Entity, With<MovableSquare>>,
     pieces_query: Query<&Piece>,
+    pieces_to_take_query: Query<(Entity, &Piece)>,
     history: Res<History>,
 ) {
-    let piece = if let Ok(piece) = selected_piece.single() {
-        piece
-    } else {
+    if !selected_piece.is_changed() {
         return;
-    };
+    }
     for entity in movable_squares_query.iter() {
         commands.entity(entity).remove::<MovableSquare>();
     }
-    let pieces: Vec<Piece> = pieces_query.iter().copied().collect();
-    let positions = piece.valid_positions(&pieces, &history);
-    for (entity, square) in squares_query.iter() {
-        for &(x, y) in positions.iter() {
-            if square.x == x && square.y == y {
-                commands.entity(entity).insert(MovableSquare);
+    if let Some(selected_piece) = selected_piece.as_ref() {
+        let pieces: Vec<Piece> = pieces_query.iter().copied().collect();
+        let piece = pieces_query
+            .get(selected_piece.piece_entity)
+            .expect("where is the piece");
+        let positions = piece.valid_positions(&pieces, &history);
+        for (entity, square) in squares_query.iter() {
+            for &(x, y, takeable) in positions.iter() {
+                if square.x == x && square.y == y {
+                    commands.entity(entity).insert(MovableSquare);
+                    if let Some(takeable) = takeable {
+                        for (entity, piece) in pieces_to_take_query.iter() {
+                            if piece.x == takeable.0 && piece.y == takeable.1 {
+                                let takeable = Takeable(x, y);
+                                commands.entity(entity).insert(takeable);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -213,66 +238,49 @@ fn highlight_moves(
 #[allow(clippy::too_many_arguments)]
 fn move_piece(
     mut commands: Commands,
-    selected_square: Query<&Square, Added<Selected>>,
     mut turn: ResMut<PlayerTurn>,
-    mut selected_piece: Query<&mut Piece, With<Selected>>,
-    target_pieces_query: Query<(Entity, &Piece), Without<Selected>>,
-    movable_query: Query<(Entity, &MovableSquare, &Square)>,
+    mut pieces_query: Query<&mut Piece, Without<Takeable>>,
+    target_pieces_query: Query<(Entity, &Takeable)>,
     mut reset_selected_event: EventWriter<ResetSelectedEvent>,
     mut turn_event_w: EventWriter<Turn>,
+    mut move_piece_r: EventReader<MovePieceEvent>,
+    selected_state: Res<Option<SelectedPiece>>,
 ) {
-    let selected_square = if let Ok(square) = selected_square.single() {
-        square
+    let &MovePieceEvent(to_x, to_y) = if let Some(x) = move_piece_r.iter().next() {
+        x
     } else {
         return;
     };
-    let mut selected_piece = if let Ok(piece) = selected_piece.single_mut() {
-        piece
-    } else {
-        return;
-    };
-    let target_square = movable_query
+    let selected_state = selected_state
+        .as_ref()
+        .expect("move without selected piece");
+    let mut selected_piece = pieces_query
+        .get_mut(selected_state.piece_entity)
+        .expect("invalid selected state");
+    let target_piece = target_pieces_query
         .iter()
-        .find(|(_, _, square)| square.x == selected_square.x && square.y == selected_square.y);
-    if let Some((_, _, target_square)) = target_square {
-        let target_piece = target_pieces_query.iter().find(|(_, target_piece)| {
-            target_piece.x == target_square.x
-                && target_piece.y == target_square.y
-                && target_piece.color == selected_piece.color.opposite()
-        });
-        if let Some((target_piece_entity, _target_piece)) = target_piece {
-            // selected_piece.energy = selected_piece.energy.saturating_add(KILL_ENERGY);
-            // Mark the piece as taken
-            commands.entity(target_piece_entity).insert(Taken);
-            // En passant
-            // if selected_piece.piece_type == PieceType::Pawn
-            //     && target_piece.piece_type == PieceType::Pawn
-            //     && selected_square.y == other_piece.y
-            //     && (selected_square.x as i8 - other_piece.x as i8).abs() == 1
-            //     && other_piece.color != selected_piece.color
-            // {
-            //     selected_piece.energy = selected_piece.energy.saturating_add(KILL_ENERGY);
-            //     // Mark the piece as taken
-            //     commands.entity(other_entity).insert(Taken);
-            // }
-        }
-        // Move the selected piece to the selected square
-        let event_turn = Turn {
-            color: turn.0,
-            piece_type: selected_piece.piece_type,
-            from_x: selected_piece.x,
-            from_y: selected_piece.y,
-            to_x: selected_square.x,
-            to_y: selected_square.y,
-        };
-        // Move piece
-        selected_piece.x = selected_square.x;
-        selected_piece.y = selected_square.y;
-
-        // Change turn
-        turn_event_w.send(event_turn);
-        turn.change();
+        .find(|(_, takeable)| takeable.0 == to_x && takeable.1 == to_y);
+    if let Some((target_piece_entity, _)) = target_piece {
+        selected_piece.energy = selected_piece.energy.saturating_add(KILL_ENERGY);
+        // Mark the piece as taken
+        commands.entity(target_piece_entity).insert(Taken);
     }
+    // Move the selected piece to the selected square
+    let event_turn = Turn {
+        color: turn.0,
+        piece_type: selected_piece.piece_type,
+        from_x: selected_piece.x,
+        from_y: selected_piece.y,
+        to_x,
+        to_y,
+    };
+    // Move piece
+    selected_piece.x = to_x;
+    selected_piece.y = to_y;
+
+    // Change turn
+    turn_event_w.send(event_turn);
+    turn.change();
     reset_selected_event.send(ResetSelectedEvent);
 }
 
@@ -281,16 +289,18 @@ struct ResetSelectedEvent;
 fn reset_selected(
     mut commands: Commands,
     mut event_reader: EventReader<ResetSelectedEvent>,
-    selected: Query<Entity, With<Selected>>,
     movable_query: Query<Entity, With<MovableSquare>>,
+    takeable_query: Query<Entity, With<Takeable>>,
+    mut selected_piece: ResMut<Option<SelectedPiece>>,
 ) {
     for _event in event_reader.iter() {
         for entity in movable_query.iter() {
             commands.entity(entity).remove::<MovableSquare>();
         }
-        for entity in selected.iter() {
-            commands.entity(entity).remove::<Selected>();
+        for entity in takeable_query.iter() {
+            commands.entity(entity).remove::<Takeable>();
         }
+        selected_piece.take();
     }
 }
 
@@ -323,7 +333,9 @@ impl Plugin for BoardPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<SquareMaterials>()
             .init_resource::<PlayerTurn>()
+            .init_resource::<Option<SelectedPiece>>()
             .add_event::<ResetSelectedEvent>()
+            .add_event::<MovePieceEvent>()
             .add_startup_system(create_board.system())
             .add_system(color_squares.system())
             .add_system(select_square.system().label("select_square"))
@@ -335,12 +347,12 @@ impl Plugin for BoardPlugin {
                     .before("select_piece")
                     .label("move_piece"),
             )
-            .add_system(
-                select_piece
-                    .system()
-                    .after("select_square")
-                    .label("select_piece"),
-            )
+            // .add_system(
+            //     select_piece
+            //         .system()
+            //         .after("select_square")
+            //         .label("select_piece"),
+            // )
             .add_system(highlight_moves.system().after("select_piece"))
             .add_system(
                 despawn_taken_pieces
@@ -348,6 +360,11 @@ impl Plugin for BoardPlugin {
                     .after("move_piece")
                     .before("select_piece"),
             )
-            .add_system(reset_selected.system().after("move_piece").before("select_piece"));
+            .add_system(
+                reset_selected
+                    .system()
+                    .after("move_piece")
+                    .before("select_piece"),
+            );
     }
 }

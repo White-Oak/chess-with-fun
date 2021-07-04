@@ -1,4 +1,4 @@
-use std::iter::repeat;
+use std::{iter::repeat};
 
 use bevy::prelude::*;
 
@@ -44,7 +44,7 @@ pub const KILL_ENERGY: u8 = 10;
 //     }
 // }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Piece {
     pub color: PieceColor,
     pub piece_type: PieceType,
@@ -55,6 +55,8 @@ pub struct Piece {
 }
 
 const FIELD_SIZE: u8 = 8;
+
+pub type MovePosition = (u8, u8, Option<Takeable>);
 
 fn check_add(mut a: u8, da: i8) -> Option<u8> {
     if da < 0 {
@@ -78,26 +80,26 @@ fn neg_mov() -> impl Iterator<Item = i8> {
     (1..=FIELD_SIZE).map(|x| -(x as i8))
 }
 
-fn valid_positions_for_rook(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece]) {
+fn valid_positions_for_rook(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece]) {
     try_move_in_line(poss, this, pieces, pos_mov(), repeat(0));
     try_move_in_line(poss, this, pieces, neg_mov(), repeat(0));
     try_move_in_line(poss, this, pieces, repeat(0), pos_mov());
     try_move_in_line(poss, this, pieces, repeat(0), neg_mov());
 }
 
-fn valid_positions_for_bishop(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece]) {
+fn valid_positions_for_bishop(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece]) {
     try_move_in_line(poss, this, pieces, pos_mov(), pos_mov());
     try_move_in_line(poss, this, pieces, pos_mov(), neg_mov());
     try_move_in_line(poss, this, pieces, neg_mov(), neg_mov());
     try_move_in_line(poss, this, pieces, neg_mov(), pos_mov());
 }
 
-fn valid_positions_for_queen(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece]) {
+fn valid_positions_for_queen(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece]) {
     valid_positions_for_rook(poss, this, pieces);
     valid_positions_for_bishop(poss, this, pieces);
 }
 
-fn valid_positions_for_knight(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece]) {
+fn valid_positions_for_knight(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece]) {
     try_move(poss, this, pieces, 1, 2);
     try_move(poss, this, pieces, 2, 1);
     try_move(poss, this, pieces, 2, -1);
@@ -109,7 +111,7 @@ fn valid_positions_for_knight(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[
 }
 
 fn valid_positions_for_pawn(
-    poss: &mut Vec<(u8, u8)>,
+    poss: &mut Vec<MovePosition>,
     this: &Piece,
     pieces: &[Piece],
     history: &History,
@@ -129,6 +131,7 @@ fn valid_positions_for_pawn(
     } else if this.x == 6 {
         try_peace_move_pawn(poss, this, pieces, -2);
     }
+    // En passant
     if let Some(last_turn) = last_turn {
         if last_turn.color.opposite() != this.color {
             return;
@@ -146,15 +149,19 @@ fn valid_positions_for_pawn(
             return;
         }
         if last_turn.to_y > this.y {
-            try_move(poss, this, pieces, multiplier, 1);
+            let to_x = (this.x as i8 + multiplier) as u8;
+            let to_y = this.y + 1;
+            poss.push((to_x, to_y, Some(Takeable(last_turn.to_x, last_turn.to_y))));
         }
         if last_turn.to_y < this.y {
-            try_move(poss, this, pieces, multiplier, -1);
+            let to_x = (this.x as i8 + multiplier) as u8;
+            let to_y = this.y - 1;
+            poss.push((to_x, to_y, Some(Takeable(last_turn.to_x, last_turn.to_y))));
         }
     }
 }
 
-fn try_peace_move_pawn(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece], dx: i8) {
+fn try_peace_move_pawn(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece], dx: i8) {
     let x = if let Some(x) = check_add(this.x, dx as i8) {
         x
     } else {
@@ -163,16 +170,16 @@ fn try_peace_move_pawn(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece],
     if pieces.iter().any(|piece| piece.x == x && piece.y == this.y) {
         return;
     }
-    poss.push((x, this.y));
+    poss.push((x, this.y, None));
 }
 
-fn try_aggr_move_pawn(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece], dx: i8) {
+fn try_aggr_move_pawn(poss: &mut Vec<MovePosition>, this: &Piece, pieces: &[Piece], dx: i8) {
     try_aggr_move_pawn_part(poss, this, pieces, dx, -1);
     try_aggr_move_pawn_part(poss, this, pieces, dx, 1);
 }
 
 fn try_aggr_move_pawn_part(
-    poss: &mut Vec<(u8, u8)>,
+    poss: &mut Vec<MovePosition>,
     this: &Piece,
     pieces: &[Piece],
     dx: i8,
@@ -194,10 +201,14 @@ fn try_aggr_move_pawn_part(
     {
         return;
     }
-    poss.push((x, y));
+    poss.push((x, y, Some(Takeable(x, y))));
 }
 
-fn valid_positions_for_king(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Piece]) {
+fn valid_positions_for_king(
+    poss: &mut Vec<(u8, u8, Option<Takeable>)>,
+    this: &Piece,
+    pieces: &[Piece],
+) {
     for dy in -1..=1 {
         for dx in -1..=1 {
             if dx == 0 && dy == 0 {
@@ -209,8 +220,16 @@ fn valid_positions_for_king(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Pi
                         .iter()
                         .any(|piece| piece.color == this.color && piece.x == x && piece.y == y)
                     {
+                        let takeable = if pieces
+                            .iter()
+                            .any(|piece| piece.color != this.color && piece.x == x && piece.y == y)
+                        {
+                            Some(Takeable(x, y))
+                        } else {
+                            None
+                        };
                         // TODO: check for checks
-                        poss.push((x, y));
+                        poss.push((x, y, takeable));
                     }
                 }
             }
@@ -219,7 +238,7 @@ fn valid_positions_for_king(poss: &mut Vec<(u8, u8)>, this: &Piece, pieces: &[Pi
 }
 
 fn try_move_in_line(
-    poss: &mut Vec<(u8, u8)>,
+    poss: &mut Vec<MovePosition>,
     this: &Piece,
     pieces: &[Piece],
     iter_dx: impl Iterator<Item = i8>,
@@ -243,7 +262,7 @@ enum MoveResult {
 }
 
 fn try_move(
-    poss: &mut Vec<(u8, u8)>,
+    poss: &mut Vec<MovePosition>,
     this: &Piece,
     pieces: &[Piece],
     dx: i8,
@@ -259,27 +278,31 @@ fn try_move(
     } else {
         return MoveResult::OutOfBounds;
     };
-    if pieces
-        .iter()
-        .any(|piece| piece.color == this.color && piece.x == x && piece.y == y)
-    {
-        return MoveResult::SameColor;
+    for piece in pieces {
+        if piece.x == x && piece.y == y {
+            if piece.color == this.color {
+                return MoveResult::SameColor;
+            } else {
+                poss.push((x, y, Some(Takeable(x, y))));
+                return MoveResult::OppositeColor;
+            };
+        }
     }
-    poss.push((x, y));
-    if pieces
-        .iter()
-        .any(|piece| piece.color != this.color && piece.x == x && piece.y == y)
-    {
-        MoveResult::OppositeColor
-    } else {
-        MoveResult::Free
-    }
+    poss.push((x, y, None));
+    MoveResult::Free
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct Takeable(pub u8, pub u8);
 
 impl Piece {
     // TODO: maybe SmallVec
     /// History is only used for en passant
-    pub fn valid_positions(&self, pieces: &[Piece], history: &History) -> Vec<(u8, u8)> {
+    pub fn valid_positions(
+        &self,
+        pieces: &[Piece],
+        history: &History,
+    ) -> Vec<(u8, u8, Option<Takeable>)> {
         let mut poss = Vec::new();
         match self.piece_type {
             PieceType::King => {
@@ -301,31 +324,6 @@ impl Piece {
         }
         poss
     }
-
-    /// Returns the possible_positions that are available
-    pub fn is_move_valid(
-        &self,
-        new_position: (u8, u8),
-        pieces: &[Piece],
-        history: &History,
-    ) -> bool {
-        // If there's a piece of the same color in the same square, it can't move
-        if color_of_square(new_position, pieces) == Some(self.color) {
-            return false;
-        }
-        let positions = self.valid_positions(pieces, history);
-        positions.contains(&new_position)
-    }
-}
-
-/// Returns None if square is empty, returns a Some with the color if not
-fn color_of_square(pos: (u8, u8), pieces: &[Piece]) -> Option<PieceColor> {
-    for piece in pieces {
-        if piece.x == pos.0 && piece.y == pos.1 {
-            return Some(piece.color);
-        }
-    }
-    None
 }
 
 fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
